@@ -17,11 +17,11 @@ Clone this project or just download the `.*py` file.
 ## Usage
 
 ```
-$ python3 init.py # for AWS, Docker and OpenShift management
+$ python3 reqs.py # for AWS, Docker and OpenShift management
 $ python3 es.py # for Elasticsearch indexes cleaning
 ```
 
-## Available options for init.py:
+## Available options for reqs.py:
 
 | Option                                                                                   | Description                                                                                                                     |
 |------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
