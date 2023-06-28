@@ -1,0 +1,112 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "No Arguments",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Help",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--help" 
+            ]
+        },
+        {
+            "name": "Version",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--version" 
+            ]
+        },
+        {
+            "name": "AWS login set-profile",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--aws", "set-profile" 
+            ]
+        },
+        {
+            "name": "AWS login get-profile",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--aws", "get-profile" 
+            ]
+        },
+        {
+            "name": "AWS login with default Runtime",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--aws", "login" 
+            ]
+        },
+        {
+            "name": "AWS logout with default Runtime",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--aws", "logout" 
+            ]
+        },
+        {
+            "name": "AWS login with podman",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--aws", "login", "--containerruntime", "podman"
+            ]
+        },
+        {
+            "name": "AWS logout with podman",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--aws", "logout", "--containerruntime", "podman"
+            ]
+        },
+        {
+            "name": "AWS list images",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--aws", "list-images"
+            ]
+        }
+    ]
+}
