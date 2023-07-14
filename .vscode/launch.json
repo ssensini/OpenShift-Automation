@@ -107,6 +107,17 @@
             "args": [ 
                 "--aws", "list-images"
             ]
+        },
+        {
+            "name": "AWS Push Image with Podman",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [ 
+                "--podman", "push"
+            ]
         }
     ]
 }
