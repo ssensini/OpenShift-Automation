@@ -10,6 +10,7 @@
 import sys
 from argparse import ArgumentParser, ArgumentError, RawDescriptionHelpFormatter
 import subprocess
+import json
 
 
 ### UTILITIES FUNCTIONS
@@ -94,9 +95,13 @@ def parse_args():
      -------------------------------------------------------------------------------
         ./${script.py} --aws {login|logout}
 
-    # Remove all the untagged images from AWS ECR repository:
+    # Remove all the untagged images from a specific AWS ECR repository:
      -------------------------------------------------------------------------------
         ./${script.py} --aws purge-images
+        
+    # Remove all the untagged images from AWS ECR repository:
+    -------------------------------------------------------------------------------
+        ./${script.py} --aws purge-images-all
         
     # List all the images from an AWS ECR repository:
      -------------------------------------------------------------------------------
@@ -169,7 +174,7 @@ def parse_args():
 
     parser.add_argument('action', help='Choice the action', nargs='?', choices=['build', 'up', 'pull'])
     parser.add_argument('--aws', help='AWS ECR functions', nargs=1,
-                        choices=['login', 'logout', 'purge-images', 'list-images', 'set-profile', 'get-profile', 'version', 'create-repo', 'delete-repo'])
+                        choices=['login', 'logout', 'purge-images', 'purge-images-all', 'list-images', 'set-profile', 'get-profile', 'version', 'create-repo', 'delete-repo'])
     parser.add_argument('--docker', help='Docker functions', nargs=1,
                         choices=['version', 'pull', 'push', 'tag'])
     parser.add_argument('--oc', help='OpenShift CLI functions', nargs=1,
@@ -458,6 +463,97 @@ class Aws:
 
             return 0
 
+    def purge_images_all(self):
+
+        # To delete all untagged images
+        rsp = usr_inp('Are you sure to delete all untagged images on any AWS ECR repository?[yes|NO] ') or 'no'
+        if rsp == 'yes':
+            cmd = ['aws', 'ecr', 'describe-repositories']
+            print('INFO: Retrieving all repos...')
+        else:
+            print('ABORT: User denied...')
+            sys.exit(1)
+
+        debug_msg = '::: LIST-REPOS: ' + ' '.join(cmd) + ' ::: \n'
+
+        print(debug_msg)
+
+        response = runcmd_checkoutput(cmd)
+
+        if type(response) == int:
+            print('ERROR: Error during execution!')
+            print('Code: ' + str(response))
+            print('''
+                Checkout the documentation for AWS cli: '
+                  'https://docs.aws.amazon.com/cli/latest/topic/return-codes.html
+                  ''')
+            return -1
+        else:
+            response = response.decode()
+
+        to_dict = json.loads(response)
+        repositories = to_dict['repositories']
+        list_repo_names = []
+
+        # List all ECR repos
+        for repo in repositories:
+            # Filter for snapshot ones (release ones can't contain untagged images)
+            if "snapshot" in repo['repositoryName'].lower():
+                list_repo_names.append(repo['repositoryName'])
+
+        profile = self.aws_prof_name
+
+        total_count = 0
+        # Retrieve all untagged images for each repo
+        for repo in list_repo_names:
+            print("###################### REPO:", repo)
+            print()
+            cmd = ['aws', 'ecr', 'list-images', '--repository-name', repo, '--profile', profile, '--filter',
+                   'tagStatus=UNTAGGED', '--query', 'imageIds[*]', '--output', 'text']
+
+            debug_msg = '::: LIST-IMAGES: ' + ' '.join(cmd) + ' ::: \n'
+            print(debug_msg)
+            untagged_images = runcmd_checkoutput(cmd)
+            if type(untagged_images) == int:
+                print('ERROR: Error during the purge: check the repository information or permissions!')
+                print('Code: ' + str(untagged_images))
+                print('''
+                                Checkout the documentation for AWS cli: '
+                                  'https://docs.aws.amazon.com/cli/latest/topic/return-codes.html
+                                  ''')
+                continue
+                # return -1
+            else:
+                untagged_images = untagged_images.decode()
+                untagged_images = untagged_images.rstrip().split('\n')
+
+            if len(untagged_images) > 0 and untagged_images[0] != '':
+                print("######### Untagged images count: ", len(untagged_images))
+                print()
+                total_count += len(untagged_images)
+                # with open("logs/purge.log", "w+") as file:
+                for image in untagged_images:
+                    cmd = ['aws', 'ecr', 'batch-delete-image', '--profile', profile, '--repository-name', repo,
+                           '--image-ids', 'imageDigest=' + image]
+                    debug_msg = '::: PURGE: ' + ' '.join(cmd) + ' ::: \n'
+                    print(debug_msg)
+                    # file.write(debug_msg)
+                    res = runcmd_checkoutput(cmd)
+                    if type(res) == int:
+                        print('ERROR: Error during this purge! Keep note of the repository and verify later.')
+                        print('Error code: ' + str(res))
+                        print('Checkout the documentation for AWS cli 2: '
+                              'https://awscli.amazonaws.com/v2/documentation/api/latest/topic/return-codes.html')
+                        # break
+                    # else:
+                        continue
+            else:
+                print('INFO: Congrats. There are no untagged images in the specified repository!')
+                print()
+                # file.close()
+        print("Purge completed! You successfully deleted", total_count, "images in your ECR registry.")
+
+
     def set_profile(self):
         rsp = usr_inp('Are you sure to configure a profile?[yes|NO]') or 'no'
         if rsp == 'yes':
@@ -660,7 +756,7 @@ class Aws:
                     print(images)
                     sys.exit(0)
 
-### END of the Aws class
+### END of the AWS class
 
 # Factory to redirect commands to proper functions
 def main():
@@ -686,7 +782,7 @@ def main():
                         ''')
 
                 # check if input needs profile's info
-                if args.aws[0] in ['login', 'purge-images', 'list-images', 'create-repo', 'delete-repo']:
+                if args.aws[0] in ['login', 'purge-images', 'purge-images-all', 'list-images', 'create-repo', 'delete-repo']:
                     aws.get_profile_info()
 
                 if args.aws[0] == 'login':
@@ -695,6 +791,8 @@ def main():
                     aws.logout()
                 elif args.aws[0] == 'purge-images':
                     aws.purge_images()
+                elif args.aws[0] == 'purge-images-all':
+                    aws.purge_images_all()
                 elif args.aws[0] == 'set-profile':
                     aws.set_profile()
                 elif args.aws[0] == 'get-profile':
