@@ -93,7 +93,7 @@ def parse_args():
 
     # Login and logout docker repository on AWS ECR (the released token is 12 hours valid):
      -------------------------------------------------------------------------------
-        ./${script.py} --aws {login|logout}
+        ./${script.py} --aws {login|logout} --containerruntime {docker|podman}
 
     # Remove all the untagged images from a specific AWS ECR repository:
      -------------------------------------------------------------------------------
@@ -146,6 +146,25 @@ def parse_args():
         ./${script.py} --docker {tag}
         
 
+    ### PODMAN SECTION
+
+    # Get Podman information
+    -------------------------------------------------------------------------------
+        ./${script.py} --podman {version}
+        
+    # Pull an image from a registry (Docker or AWS ECR)
+    -------------------------------------------------------------------------------
+        ./${script.py} --podman {pull}
+        
+    # Push an image to a registry (Docker or AWS ECR)
+    -------------------------------------------------------------------------------
+        ./${script.py} --podman {push}
+        
+    # Tag an image
+    -------------------------------------------------------------------------------
+        ./${script.py} --podman {tag}
+
+
     ### OPENSHIFT SECTION
 
     # Get OC client information
@@ -171,20 +190,23 @@ def parse_args():
     args['version'] = '1.0'
     args['help'] = 'show program\'s version number and exit'
     parser.add_argument('-v', '--version', **args)
-
-    parser.add_argument('action', help='Choice the action', nargs='?', choices=['build', 'up', 'pull'])
+    parser.add_argument('-c', '--containerruntime', help='Set the container runtime', choices=['docker','podman'], default=str('docker'), nargs=1)
+    
+#    parser.add_argument('action', help='Choice the action', nargs='?', choices=['build', 'up', 'pull'])
     parser.add_argument('--aws', help='AWS ECR functions', nargs=1,
                         choices=['login', 'logout', 'purge-images', 'purge-images-all', 'list-images', 'set-profile', 'get-profile', 'version', 'create-repo', 'delete-repo'])
     parser.add_argument('--docker', help='Docker functions', nargs=1,
                         choices=['version', 'pull', 'push', 'tag'])
+    parser.add_argument('--podman', help='Podman functions', nargs=1,
+                        choices=['version', 'pull', 'push', 'tag'])
     parser.add_argument('--oc', help='OpenShift CLI functions', nargs=1,
                         choices=['version'])
     parser.add_argument('--test', help='Check whether all the requirements defined in Confluence guide have been '
-                                       'implemented', nargs=1,
+                                      'implemented', nargs=1,
                         choices=['system', 'cluster'])
     parser.add_argument('--s2i', help='S2I functions', nargs=1,
                         choices=['version'])
-
+  
     # it shows the help if no arguments are passed to script
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)
@@ -300,6 +322,105 @@ class Docker:
             print('ABORT: Error in command running...')
             sys.exit(1)
 
+class Podman:
+
+    def __init__(self):
+        pass
+
+    def get_version(self):
+        cmd = ['podman', '--version']
+
+        res = runcmd_call(cmd)
+        res = res.strip().replace('podman version', '')
+
+        version = float(res[0:8].strip()[:3])
+
+        if version < 4.5:
+            sys.exit('WARN: The minimum Podman version supported to be able to use AWS-cli is 4.5. Update your '
+                     'current version!')
+        return version
+
+    def is_installed(self):
+        from shutil import which
+        return which('podman')
+
+    def pull_image(self):
+        image = usr_inp('Insert the image URL you want to pull: ')
+
+        if image != '':
+            cmd = ['podman', 'pull', image]
+
+        try:
+            res = runcmd_call(cmd)
+            if type(res) == tuple and res[1] == 1:
+                error_message = res[0].decode()
+                if 'access denied' in error_message:
+                    print('ERROR: to pull this image, you must login. Use --aws option if is an ECR registry or '
+                          '--docker option for a Docker one.')
+                elif 'not found' in error_message:
+                    print('ERROR: image URL is not correct or it doesn\'t exist. Verify that the repository name is '
+                          'correct.')
+            else:
+                print('Image has been pulled successfully.')
+            sys.exit(0)
+        except Exception as e:
+            print('ABORT: Error in command running...')
+            sys.exit(1)
+
+    def tag_image(self):
+        image_name = usr_inp('Insert the image name you want to tag: ')
+
+        tag = usr_inp('Insert the tag you\'like to add to your image: ')
+
+        registry = usr_inp('Insert the registry (specify a Docker or AWS ECR URL): ')
+
+        if image_name != '' or tag != '' or registry != '':
+            cmd = ['podman', 'tag', image_name, registry + '/' + image_name + ':' + tag]
+
+        try:
+            res = runcmd_call(cmd)
+            if type(res) == tuple and res[1] == 1:
+                error_message = res[0].decode()
+                if 'not a valid' in error_message:
+                    print('ERROR: the provided registry URL is not valid. Check the URL above and verify that its '
+                          'syntax is correct.')
+                elif 'such image':
+                    print('ERROR: the provided image doesn\'t exist. Check the name and retry!')
+            else:
+                print('Image was tagged successfully!')
+            sys.exit(0)
+        except Exception as e:
+            print('ABORT: Error in command running...')
+            sys.exit(1)
+
+
+    def push_image(self):
+        image_name = usr_inp('Insert the image name you want to push: ')
+
+        tag = usr_inp('Insert the image tag: ')
+
+        registry = usr_inp('Insert the registry in which you want to push your image (Docker or AWS ECR): ')
+
+        if image_name != '' or tag != '' or registry != '':
+            cmd = ['podman', 'push', registry + '/' + image_name + ':' + tag]
+            print('\n::: PODMAN PUSH: ' + ' '.join(cmd) + ' ::: \n')
+
+        try:
+            res = runcmd_call(cmd)
+            if type(res) == tuple and res[1] == 1:
+                error_message = res[0].decode()
+                print(error_message)
+                if 'not a valid' in error_message:
+                    print('ERROR: the provided registry URL is not valid. Check the URL above and verify that its '
+                          'syntax is correct.')
+                elif 'such image':
+                    print('ERROR: the provided image doesn\'t exist. Check the name and retry!')
+            else:
+                print('Image was pushed successfully!')
+            sys.exit(0)
+        except Exception as e:
+            print('ABORT: Error in command running...')
+            sys.exit(1)
 
 
 # Class to manage S2I actions
@@ -344,9 +465,10 @@ class OC:
 # Class to manage AWS actions
 class Aws:
 
-    def __init__(self, aws_props_lists=None, aws_prof_name=None):
+    def __init__(self, aws_props_lists=None, aws_prof_name=None, container_runtime=None):
         self.aws_props_lists = aws_props_lists
         self.aws_prof_name = aws_prof_name
+        self.container_runtime=container_runtime
 
     def is_installed(self):
         from shutil import which
@@ -354,8 +476,9 @@ class Aws:
 
 
     def logout(self):
-        cmd = ['docker', 'logout', '350801433917.dkr.ecr.eu-west-1.amazonaws.com']
-        print('\n::: AWS LOGOUT' + ' '.join(cmd) + ' ::: \n')
+        containerruntime = self.container_runtime
+        cmd = [containerruntime, 'logout', '350801433917.dkr.ecr.eu-west-1.amazonaws.com']
+        print('\n::: AWS LOGOUT: ' + ' '.join(cmd) + ' ::: \n')
         result = runcmd_call(cmd)
         print(result)
         sys.exit(0)
@@ -367,20 +490,31 @@ class Aws:
             props = dict(self.aws_props_lists)
             region = props['region']
             profile = self.aws_prof_name
+            containerruntime = self.container_runtime
             cmd = ['aws', 'ecr', 'get-login-password', '--region', region, '--profile', profile]
             print('\n::: GET-LOGIN: ' + ' '.join(cmd) + ' ::: \n')
 
             token = runcmd_call(cmd)
 
             # Execute the docker Login by security token
-            cmd = ['docker', 'login', '-u', 'AWS', '--password-stdin',
+            cmd = [containerruntime, 'login', '-u', 'AWS', '--password-stdin',
                    '350801433917.dkr.ecr.eu-west-1.amazonaws.com']
-            print('\n::: DOCKER: ' + ' '.join(cmd) + ' ::: \n')
-
-            return runcmd_sh(cmd, token)
-
-        except:
-            print('ERROR: The login procedure is failed. Check the credentials and retry!')
+            print('\n::: ' + containerruntime.upper() + ': ' + ' '.join(cmd) + ' ::: \n')
+            
+            returncode=runcmd_sh(cmd,token)
+            
+            # When using podman there is no daemon, it depends on the VM being started, although NOT definitive 125 return code
+            #  often coincides that the user has not started the machine with 'podman machine start', so give a hint.
+            if (returncode==125 and containerruntime=='podman') :
+                print('ERROR: connection could not be made, is it possible your podman VM is NOT running?  If so please run "podman machine start"')
+            elif returncode==0:
+                print('SUCCESS: Logged in')
+            return returncode
+        except FileNotFoundError as err:
+            print('ERROR: The login procedure failed.  Check you have Docker or Podman installed, if not Docker reference podman with the "--containerruntime podman" parameter')
+            sys.exit(2)
+        except Exception as err:
+            print('ERROR: The login procedure is failed. Check the credentials and retry!::')
             sys.exit(1)
 
 
@@ -768,7 +902,12 @@ def main():
     # Manages the --aws arguments
     try:
         if args.aws:
-            aws = Aws()
+            if type(args.containerruntime)==list:
+                runtime=args.containerruntime[0]
+            else:
+                runtime=args.containerruntime
+            
+            aws = Aws(container_runtime=runtime)
             if aws.is_installed():
 
                 # check which version is installed
@@ -843,6 +982,32 @@ def main():
                       https://docs.docker.com/install/linux/docker-ce/centos/#install-using-the-repository
                 ''')
 
+        elif args.podman:
+            podman = Podman()
+            if podman.is_installed():
+
+                if args.podman[0] == 'version':
+                    print(podman.get_version())
+
+                if args.podman[0] == 'pull':
+                    print(podman.pull_image())
+
+                if args.podman[0] == 'tag':
+                    print(podman.tag_image())
+
+                if args.podman[0] == 'push':
+                    print(podman.push_image())
+
+            else:
+                print('''\
+                    -------------------------------------------------------------------------------
+                    -- Podman --
+                    -------------------------------------------------------------------------------
+                    Result: KO
+                    Details: Podman is not installed in the current system. To install it, check this link: 
+                      https://podman.io/docs/installation
+                ''')
+
         elif args.oc:
             oc = OC()
 
@@ -863,7 +1028,9 @@ def main():
         elif args.test:
             s2i = S2I()
             aws = Aws()
+            container_runtime=args.containerruntime
             docker = Docker()
+            podman = Podman()
             oc = OC()
             passed = True
 
@@ -909,7 +1076,7 @@ def main():
                 Result: OK
                 ''')
 
-                if docker.is_installed() is None:
+                if container_runtime == 'docker' and docker.is_installed() is None:
                     passed = False
                     print('''\
                 -------------------------------------------------------------------------------
@@ -923,6 +1090,24 @@ def main():
                     print('''\
                 -------------------------------------------------------------------------------
                 -- Docker --
+                -------------------------------------------------------------------------------
+                Result: OK
+                ''')
+
+                if container_runtime == 'podman' and podman.is_installed() is None:
+                    passed = False
+                    print('''\
+                -------------------------------------------------------------------------------
+                -- Podman --
+                -------------------------------------------------------------------------------
+                Result: KO
+                Details: Podman is not installed in the current system. To install it, check this link: 
+                  https://podman.io/docs/installation
+                ''')
+                else:
+                    print('''\
+                -------------------------------------------------------------------------------
+                -- Podman --
                 -------------------------------------------------------------------------------
                 Result: OK
                 ''')
@@ -996,7 +1181,7 @@ def main():
                 Result: OK
                 ''')
 
-                if docker.is_installed() is None:
+                if container_runtime == 'docker' and docker.is_installed() is None:
                     passed = False
                     print('''\
                 -------------------------------------------------------------------------------
@@ -1010,6 +1195,24 @@ def main():
                     print('''\
                 -------------------------------------------------------------------------------
                 -- Docker --
+                -------------------------------------------------------------------------------
+                Result: OK
+                ''')
+
+                if container_runtime == 'podman' and podman.is_installed() is None:
+                    passed = False
+                    print('''\
+                -------------------------------------------------------------------------------
+                -- Podman --
+                -------------------------------------------------------------------------------
+                Result: KO
+                Details: Podman is not installed in the current system. To install it, check this link: 
+                  https://podman.io/docs/installation
+                ''')
+                else:
+                    print('''\
+                -------------------------------------------------------------------------------
+                -- Podman --
                 -------------------------------------------------------------------------------
                 Result: OK
                 ''')
@@ -1052,6 +1255,7 @@ def main():
             s2i = S2I()
             aws = Aws()
             docker = Docker()
+            podman = Podman()
             oc = OC()
             passed = True
 
@@ -1097,7 +1301,7 @@ def main():
                 Result: OK
                 ''')
 
-                if docker.is_installed() is None:
+                if container_runtime == 'docker' and docker.is_installed() is None:
                     passed = False
                     print('''\
                 -------------------------------------------------------------------------------
@@ -1111,6 +1315,24 @@ def main():
                     print('''\
                 -------------------------------------------------------------------------------
                 -- Docker --
+                -------------------------------------------------------------------------------
+                Result: OK
+                ''')
+
+                if container_runtime == 'podman' and podman.is_installed() is None:
+                    passed = False
+                    print('''\
+                -------------------------------------------------------------------------------
+                -- Podman --
+                -------------------------------------------------------------------------------
+                Result: KO
+                Details: Podman is not installed in the current system. To install it, check this link: 
+                  https://podman.io/docs/installation
+                ''')
+                else:
+                    print('''\
+                -------------------------------------------------------------------------------
+                -- Podman --
                 -------------------------------------------------------------------------------
                 Result: OK
                 ''')
@@ -1184,7 +1406,7 @@ def main():
                 Result: OK
                 ''')
 
-                if docker.is_installed() is None:
+                if container_runtime == 'docker' and docker.is_installed() is None:
                     passed = False
                     print('''\
                 -------------------------------------------------------------------------------
@@ -1198,6 +1420,24 @@ def main():
                     print('''\
                 -------------------------------------------------------------------------------
                 -- Docker --
+                -------------------------------------------------------------------------------
+                Result: OK
+                ''')
+
+                if container_runtime == 'podman' and podman.is_installed() is None:
+                    passed = False
+                    print('''\
+                -------------------------------------------------------------------------------
+                -- Podman --
+                -------------------------------------------------------------------------------
+                Result: KO
+                Details: Podman is not installed in the current system. To install it, check this link: 
+                  https://podman.io/docs/installation
+                ''')
+                else:
+                    print('''\
+                -------------------------------------------------------------------------------
+                -- Podman --
                 -------------------------------------------------------------------------------
                 Result: OK
                 ''')
