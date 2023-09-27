@@ -41,7 +41,6 @@ def printflush(text, stream=sys.stdout):
 
 
 def runcmd_sh(cmd, obj_to_stdin):
-
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
     p.stdin.write(obj_to_stdin)  # expects a bytes type object
     p_ret = p.communicate()[0]
@@ -52,7 +51,6 @@ def runcmd_sh(cmd, obj_to_stdin):
 # Run command with arguments and return its output as a byte string.
 # If the return code was non-zero it raises a CalledProcessError
 def runcmd_checkoutput(cmd):
-
     try:
         p = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as suberr:
@@ -64,7 +62,6 @@ def runcmd_checkoutput(cmd):
 
 # Run the command described by args. Wait for command to complete, then return the return code attribute
 def runcmd_call(cmd):
-
     try:
         p = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
         return p
@@ -74,7 +71,6 @@ def runcmd_call(cmd):
         raise Exception(e)
 
     return p
-
 
 
 # END
@@ -98,11 +94,11 @@ def parse_args():
     # Remove all the untagged images from a specific AWS ECR repository:
      -------------------------------------------------------------------------------
         ./${script.py} --aws purge-images
-        
+
     # Remove all the untagged images from AWS ECR repository:
     -------------------------------------------------------------------------------
         ./${script.py} --aws purge-images-all
-        
+
     # List all the images from an AWS ECR repository:
      -------------------------------------------------------------------------------
         ./${script.py} --aws list-images
@@ -114,11 +110,15 @@ def parse_args():
     # Get a profile stored under the files /.aws/config and /.aws/credentials
     -------------------------------------------------------------------------------
         ./${script.py} --aws get-profile
-        
+    
+    # Get the current profile that has been setup
+    -------------------------------------------------------------------------------
+        ./${script.py} --aws get-current-profile
+
     # Create repo on ECR for both release and snapshot
     -------------------------------------------------------------------------------
         ./${script.py} --aws create-repo
-        
+
     # Delete repo on ECR
     -------------------------------------------------------------------------------
         ./${script.py} --aws delete-repo
@@ -132,34 +132,34 @@ def parse_args():
     # Get Docker information
     -------------------------------------------------------------------------------
         ./${script.py} --docker {version}
-        
+
     # Pull an image from a registry (Docker or AWS ECR)
     -------------------------------------------------------------------------------
         ./${script.py} --docker {pull}
-        
+
     # Push an image to a registry (Docker or AWS ECR)
     -------------------------------------------------------------------------------
         ./${script.py} --docker {push}
-        
+
     # Tag an image
     -------------------------------------------------------------------------------
         ./${script.py} --docker {tag}
-        
+
 
     ### PODMAN SECTION
 
     # Get Podman information
     -------------------------------------------------------------------------------
         ./${script.py} --podman {version}
-        
+
     # Pull an image from a registry (Docker or AWS ECR)
     -------------------------------------------------------------------------------
         ./${script.py} --podman {pull}
-        
+
     # Push an image to a registry (Docker or AWS ECR)
     -------------------------------------------------------------------------------
         ./${script.py} --podman {push}
-        
+
     # Tag an image
     -------------------------------------------------------------------------------
         ./${script.py} --podman {tag}
@@ -187,14 +187,16 @@ def parse_args():
 
     args.clear()
     args['action'] = 'version'
-    args['version'] = '1.0'
+    args['version'] = '2.0'
     args['help'] = 'show program\'s version number and exit'
     parser.add_argument('-v', '--version', **args)
-    parser.add_argument('-c', '--containerruntime', help='Set the container runtime', choices=['docker','podman'], default=str('docker'), nargs=1)
-    
-#    parser.add_argument('action', help='Choice the action', nargs='?', choices=['build', 'up', 'pull'])
+    parser.add_argument('-c', '--containerruntime', help='Set the container runtime', choices=['docker', 'podman'],
+                        default=str('docker'), nargs=1)
+
+    #    parser.add_argument('action', help='Choice the action', nargs='?', choices=['build', 'up', 'pull'])
     parser.add_argument('--aws', help='AWS ECR functions', nargs=1,
-                        choices=['login', 'logout', 'purge-images', 'purge-images-all', 'list-images', 'set-profile', 'get-profile', 'version', 'create-repo', 'delete-repo'])
+                        choices=['login', 'logout', 'purge-images', 'purge-images-all', 'list-images', 'set-profile',
+                                 'get-profile', 'get-current-profile', 'version', 'create-repo', 'delete-repo'])
     parser.add_argument('--docker', help='Docker functions', nargs=1,
                         choices=['version', 'pull', 'push', 'tag'])
     parser.add_argument('--podman', help='Podman functions', nargs=1,
@@ -202,11 +204,11 @@ def parse_args():
     parser.add_argument('--oc', help='OpenShift CLI functions', nargs=1,
                         choices=['version'])
     parser.add_argument('--test', help='Check whether all the requirements defined in Confluence guide have been '
-                                      'implemented', nargs=1,
+                                       'implemented', nargs=1,
                         choices=['system', 'cluster'])
     parser.add_argument('--s2i', help='S2I functions', nargs=1,
                         choices=['version'])
-  
+
     # it shows the help if no arguments are passed to script
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)
@@ -229,16 +231,15 @@ class Docker:
 
     def get_version(self):
         cmd = ['docker', '--version']
-
         res = runcmd_call(cmd)
-        res = res.strip().replace('Docker version', '')
+        res = res.strip().decode().replace('Docker version ', '')
 
-        version = float(res[0:8].strip()[:5])
-
-        if version < 17.07:
-            sys.exit('WARN: The minimum Docker version supported to be able to use AWS-cli is 17.07. Update your '
-                     'current version!')
-        return version
+        # version = float(res[0:8].strip()[:5])
+        #
+        # if version < 17.07:
+        #     sys.exit('WARN: The minimum Docker version supported to be able to use AWS-cli is 17.07. Update your '
+        #              'current version!')
+        return res
 
     def is_installed(self):
         from shutil import which
@@ -293,7 +294,6 @@ class Docker:
             print('ABORT: Error in command running...')
             sys.exit(1)
 
-
     def push_image(self):
         image_name = usr_inp('Insert the image name you want to push: ')
 
@@ -322,6 +322,7 @@ class Docker:
             print('ABORT: Error in command running...')
             sys.exit(1)
 
+
 class Podman:
 
     def __init__(self):
@@ -331,14 +332,15 @@ class Podman:
         cmd = ['podman', '--version']
 
         res = runcmd_call(cmd)
-        res = res.strip().replace('podman version', '')
+        res = res.strip().decode().replace('podman version', '').strip()
 
-        version = float(res[0:8].strip()[:3])
+        # version = float(res)
+        # print(version)
 
-        if version < 4.5:
-            sys.exit('WARN: The minimum Podman version supported to be able to use AWS-cli is 4.5. Update your '
-                     'current version!')
-        return version
+        # if version < 4.5:
+        #     sys.exit('WARN: The minimum Podman version supported to be able to use AWS-cli is 4.5. Update your '
+        #              'current version!')
+        return res
 
     def is_installed(self):
         from shutil import which
@@ -393,7 +395,6 @@ class Podman:
             print('ABORT: Error in command running...')
             sys.exit(1)
 
-
     def push_image(self):
         image_name = usr_inp('Insert the image name you want to push: ')
 
@@ -432,7 +433,7 @@ class S2I:
     def get_version(self):
         cmd = ['s2i', 'version']
         res = runcmd_call(cmd)
-        res = res.strip().replace('s2i ', '')
+        res = res.strip().decode().replace('s2i ', '')
 
         version = res[0:6].strip()
         return version
@@ -452,10 +453,9 @@ class OC:
         cmd = ['oc', 'version']
 
         res = runcmd_call(cmd)
-        res = res.strip().replace('oc v', '')
+        res = res[0].decode() if res is not None and type(res) is tuple else "No version available"
 
-        version = '.'.join(res.split('.', 2)[:2])
-        return version
+        return res
 
     def is_installed(self):
         from shutil import which
@@ -468,21 +468,19 @@ class Aws:
     def __init__(self, aws_props_lists=None, aws_prof_name=None, container_runtime=None):
         self.aws_props_lists = aws_props_lists
         self.aws_prof_name = aws_prof_name
-        self.container_runtime=container_runtime
+        self.container_runtime = container_runtime
 
     def is_installed(self):
         from shutil import which
         return which('aws')
-
 
     def logout(self):
         containerruntime = self.container_runtime
         cmd = [containerruntime, 'logout', '350801433917.dkr.ecr.eu-west-1.amazonaws.com']
         print('\n::: AWS LOGOUT: ' + ' '.join(cmd) + ' ::: \n')
         result = runcmd_call(cmd)
-        print(result)
+        print(result.decode())
         sys.exit(0)
-
 
     def login(self):
         try:
@@ -496,27 +494,28 @@ class Aws:
 
             token = runcmd_call(cmd)
 
-            # Execute the docker Login by security token
+            # Execute the Docker Login by security token
             cmd = [containerruntime, 'login', '-u', 'AWS', '--password-stdin',
                    '350801433917.dkr.ecr.eu-west-1.amazonaws.com']
             print('\n::: ' + containerruntime.upper() + ': ' + ' '.join(cmd) + ' ::: \n')
-            
-            returncode=runcmd_sh(cmd,token)
-            
+
+            returncode = runcmd_sh(cmd, token)
+
             # When using podman there is no daemon, it depends on the VM being started, although NOT definitive 125 return code
             #  often coincides that the user has not started the machine with 'podman machine start', so give a hint.
-            if (returncode==125 and containerruntime=='podman') :
-                print('ERROR: connection could not be made, is it possible your podman VM is NOT running?  If so please run "podman machine start"')
-            elif returncode==0:
+            if returncode == 125 and containerruntime == 'podman':
+                print(
+                    'ERROR: connection could not be made, is it possible your podman VM is NOT running?  If so please run "podman machine start"')
+            elif returncode == 0:
                 print('SUCCESS: Logged in')
             return returncode
         except FileNotFoundError as err:
-            print('ERROR: The login procedure failed.  Check you have Docker or Podman installed, if not Docker reference podman with the "--containerruntime podman" parameter')
+            print(
+                'ERROR: The login procedure failed.  Check you have Docker or Podman installed, if not Docker reference podman with the "--containerruntime podman" parameter')
             sys.exit(2)
         except Exception as err:
             print('ERROR: The login procedure is failed. Check the credentials and retry!::')
             sys.exit(1)
-
 
     def purge_images(self):
 
@@ -679,14 +678,13 @@ class Aws:
                         print('Checkout the documentation for AWS cli 2: '
                               'https://awscli.amazonaws.com/v2/documentation/api/latest/topic/return-codes.html')
                         # break
-                    # else:
+                        # else:
                         continue
             else:
                 print('INFO: Congrats. There are no untagged images in the specified repository!')
                 print()
                 # file.close()
         print("Purge completed! You successfully deleted", total_count, "images in your ECR registry.")
-
 
     def set_profile(self):
         rsp = usr_inp('Are you sure to configure a profile?[yes|NO]') or 'no'
@@ -746,15 +744,15 @@ class Aws:
                 sys.exit(0)
 
             cmd = ['aws', 'configure', 'get', 'aws_secret_access_key', '--profile', profile_name]
-            secret_key = (runcmd_call(cmd))
+            secret_key = (runcmd_call(cmd).decode())
 
             cmd = ['aws', 'configure', 'get', 'region', '--profile', profile_name]
             region = (runcmd_call(cmd).decode())
 
             cmd = ['aws', 'configure', 'get', 'output', '--profile', profile_name]
-            output = (runcmd_call(cmd))
+            output = (runcmd_call(cmd).decode())
             self.aws_prof_name = profile_name
-            self.aws_props_lists = [('aws_access_key_id', access_key.strip()), \
+            self.aws_props_lists = [('aws_access_key_id', access_key.decode().strip()), \
                                     ('aws_secret_access_key', secret_key.strip()), \
                                     ('region', region.strip()), \
                                     ('output', output.strip())]
@@ -763,10 +761,10 @@ class Aws:
             print("ERROR: The specified AWS profile is not configured. Use '--aws set-profile' to set a new one.")
             sys.exit(0)
 
-    def get_available_profiles(self):
+    def get_current_profile(self):
         cmd = ['aws', 'configure', 'list']
         print('\n::: ' + ' '.join(cmd) + ' ::: \n')
-        return runcmd_call(cmd)
+        return runcmd_call(cmd).decode()
 
     def get_version(self):
         cmd = ['aws', '--version']
@@ -803,14 +801,17 @@ class Aws:
 
     def create_repo(self):
         print("This command will allow you to create a repo on ECR for both release and snapshot images.")
-        print("According to your input, two repos will be created, where one has '-snapshot' as suffix, as explained in the documentation (link: https://confluence.dedalus.com/display/DRA/OCP+-+1+-+S2I+Quick+Start). ")
+        print(
+            "According to your input, two repos will be created, where one has '-snapshot' as suffix, as explained in the documentation (link: https://confluence.dedalus.com/display/DRA/OCP+-+1+-+S2I+Quick+Start). ")
         print("Example: the input is 'products/organization_name/my_product'")
-        print("Result: 'products/organization_name/my_product' and 'products/organization_name/my_product-snapshot' created.")
+        print(
+            "Result: 'products/organization_name/my_product' and 'products/organization_name/my_product-snapshot' created.")
         repo = usr_inp('Enter the repository name: ')
         profile = self.aws_prof_name
         if repo != '' and profile != '':
             # release repo
-            cmd = ['aws', 'ecr', 'create-repository', '--repository-name', repo, '--image-tag-mutability', 'IMMUTABLE', '--image-scanning-configuration', 'scanOnPush=true']
+            cmd = ['aws', 'ecr', 'create-repository', '--repository-name', repo, '--image-tag-mutability', 'IMMUTABLE',
+                   '--image-scanning-configuration', 'scanOnPush=true']
 
             debug_msg = '::: CREATE-REPO FOR RELEASE: ' + ' '.join(cmd) + ' ::: \n'
             print(debug_msg)
@@ -826,7 +827,8 @@ class Aws:
                 print(images)
                 # sys.exit(0)
 
-            cmd = ['aws', 'ecr', 'create-repository', '--repository-name', repo+'-snapshot', '--image-tag-mutability', 'MUTABLE',
+            cmd = ['aws', 'ecr', 'create-repository', '--repository-name', repo + '-snapshot', '--image-tag-mutability',
+                   'MUTABLE',
                    '--image-scanning-configuration', 'scanOnPush=true']
 
             # snapshot repo
@@ -852,7 +854,8 @@ class Aws:
         profile = self.aws_prof_name
         print(profile)
         if repo != '' and profile != '':
-            cmd = ['aws', 'ecr', 'delete-repository', '--repository-name', repo, '--profile', profile, '--output', 'json']
+            cmd = ['aws', 'ecr', 'delete-repository', '--repository-name', repo, '--profile', profile, '--output',
+                   'json']
 
             debug_msg = '::: REMOVE-REPO for RELEASE: ' + ' '.join(cmd) + ' ::: \n'
             print(debug_msg)
@@ -871,7 +874,8 @@ class Aws:
                 # sys.exit(0)
 
             if snapshot.lower() == 'y':
-                cmd = ['aws', 'ecr', 'delete-repository', '--repository-name', repo+'-snapshot', '--profile', profile, '--output',
+                cmd = ['aws', 'ecr', 'delete-repository', '--repository-name', repo + '-snapshot', '--profile', profile,
+                       '--output',
                        'json']
 
                 debug_msg = '::: REMOVE-REPO for SNAPSHOT: ' + ' '.join(cmd) + ' ::: \n'
@@ -890,6 +894,7 @@ class Aws:
                     print(images)
                     sys.exit(0)
 
+
 ### END of the AWS class
 
 # Factory to redirect commands to proper functions
@@ -902,11 +907,11 @@ def main():
     # Manages the --aws arguments
     try:
         if args.aws:
-            if type(args.containerruntime)==list:
-                runtime=args.containerruntime[0]
+            if type(args.containerruntime) == list:
+                runtime = args.containerruntime[0]
             else:
-                runtime=args.containerruntime
-            
+                runtime = args.containerruntime
+
             aws = Aws(container_runtime=runtime)
             if aws.is_installed():
 
@@ -921,7 +926,8 @@ def main():
                         ''')
 
                 # check if input needs profile's info
-                if args.aws[0] in ['login', 'purge-images', 'purge-images-all', 'list-images', 'create-repo', 'delete-repo']:
+                if args.aws[0] in ['login', 'purge-images', 'purge-images-all', 'list-images', 'create-repo',
+                                   'delete-repo']:
                     aws.get_profile_info()
 
                 if args.aws[0] == 'login':
@@ -936,6 +942,8 @@ def main():
                     aws.set_profile()
                 elif args.aws[0] == 'get-profile':
                     aws.get_profile_info()
+                elif args.aws[0] == 'get-current-profile':
+                    print(aws.get_current_profile())
                 elif args.aws[0] == 'version':
                     print(aws.get_version())
                 elif args.aws[0] == 'list-images':
@@ -944,6 +952,7 @@ def main():
                     print(aws.create_repo())
                 elif args.aws[0] == 'delete-repo':
                     print(aws.delete_repo())
+
 
             else:
                 print('''
@@ -1028,7 +1037,7 @@ def main():
         elif args.test:
             s2i = S2I()
             aws = Aws()
-            container_runtime=args.containerruntime
+            container_runtime = args.containerruntime
             docker = Docker()
             podman = Podman()
             oc = OC()
@@ -1250,215 +1259,6 @@ def main():
                     Details: S2I is not installed in the current system. To install it, check this link: 
                       'https://github.com/openshift/source-to-image#for-linux
                     ''')
-
-        elif args.test:
-            s2i = S2I()
-            aws = Aws()
-            docker = Docker()
-            podman = Podman()
-            oc = OC()
-            passed = True
-
-            print('''\
-                -------------------------------------------------------------------------------
-                -- This test will check if all the requirements are satisfied. --
-                -------------------------------------------------------------------------------
-                ''')
-            if args.test[0] == 'system':
-                if s2i.is_installed() is None:
-                    passed = False
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- S2I --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: S2I is not installed in the current system. To install it, check this link: 
-                  'https://github.com/openshift/source-to-image#for-linux
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- S2I --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-
-                if aws.is_installed() is None:
-                    passed = False
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- AWS --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: AWS-cli is not installed in the current system. To install it, check this link: 
-                  https://docs.aws.amazon.com/en_us/cli/latest/userguide/install-cliv2.html
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- AWS --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-
-                if container_runtime == 'docker' and docker.is_installed() is None:
-                    passed = False
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- Docker --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: Docker is not installed in the current system. To install it, check this link: 
-                  https://docs.docker.com/install/linux/docker-ce/centos/#install-using-the-repository
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- Docker --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-
-                if container_runtime == 'podman' and podman.is_installed() is None:
-                    passed = False
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- Podman --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: Podman is not installed in the current system. To install it, check this link: 
-                  https://podman.io/docs/installation
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- Podman --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-
-                if passed:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- FINAL RESULT --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- FINAL RESULT --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: Some requirements are missing or are not configure properly. Check the 
-                logs before.
-                ''')
-                sys.exit(0)
-            elif args.test[0] == 'cluster':
-                if oc.is_installed() is None:
-                    passed = False
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- OpenShift Cluster --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: OpenShift Cluster is not installed. To download it, check the link: https://www.okd.io/download.html
-                ''')
-                elif float(oc.get_version()) < 3.9 or docker.get_version() != 1.13:
-                    passed = False
-                    print('''\
-                --------------------------------------------------------------------------------- 
-                -- OpenShift --
-                ---------------------------------------------------------------------------------
-                Result: KO Details: To run an OpenShift cluster locally, you must have a compatible version of Docker 
-                installed in your environment. OpenShift officially supports the following versions of Docker: 
-                |-------------------|----------------|
-                | OpenShift version | Docker version |
-                |-------------------|----------------|
-                | 3.9+              | 1.13           |
-                | 3.6-3.7           | 1.12           |
-                | 1.4-1.5           | 1.12           |
-                |-------------------|----------------|
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- OpenShift --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-
-                if aws.is_installed() is None:
-                    passed = False
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- AWS --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: AWS-cli is not installed in the current system. To install it, check this link: 
-                  https://docs.aws.amazon.com/en_us/cli/latest/userguide/install-cliv2.html
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- AWS --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-
-                if container_runtime == 'docker' and docker.is_installed() is None:
-                    passed = False
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- Docker --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: Docker is not installed in the current system. To install it, check this link: 
-                  https://docs.docker.com/install/linux/docker-ce/centos/#install-using-the-repository
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- Docker --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-
-                if container_runtime == 'podman' and podman.is_installed() is None:
-                    passed = False
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- Podman --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: Podman is not installed in the current system. To install it, check this link: 
-                  https://podman.io/docs/installation
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- Podman --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-
-                if passed:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- FINAL RESULT --
-                -------------------------------------------------------------------------------
-                Result: OK
-                ''')
-                else:
-                    print('''\
-                -------------------------------------------------------------------------------
-                -- FINAL RESULT --
-                -------------------------------------------------------------------------------
-                Result: KO
-                Details: Some requirements are missing or are not configure properly. Check the 
-                logs before.
-                ''')
-                sys.exit(0)
 
     except:
         pass
